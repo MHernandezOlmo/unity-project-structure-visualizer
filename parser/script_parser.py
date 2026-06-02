@@ -11,12 +11,13 @@ CLASS_RE = re.compile(
     re.MULTILINE,
 )
 
-# Matches [SerializeField] on same line or line above the field declaration
+# Matches [SerializeField] on same line or line(s) above the field declaration.
+# Handles blank lines and // comments between attribute and field.
 SERIALIZE_FIELD_RE = re.compile(
     r"\[(?:[^\]]*,\s*)?SerializeField(?:\s*,[^\]]*)?\]"
-    r"[ \t]*\n?[ \t]*"  # at most one newline between attribute and field
+    r"(?:[ \t]*(?://[^\n]*)?\n)*[ \t]*"  # skip blank/comment lines + leading whitespace
     r"(?:(?:private|public|protected|internal|readonly|static|override|virtual|new)\s+)*"
-    r"([\w<>\[\].,\s]+?)\s+"
+    r"([\w<>\[\]., \t]+?)\s+"  # type: horizontal whitespace only (handles generics)
     r"(\w+)\s*(?:;|=|\{)",
 )
 
@@ -31,15 +32,33 @@ class ScriptInfo:
     serialize_fields: list[dict] = field(default_factory=list)
 
 
+def _split_top_level(s: str) -> list[str]:
+    """Split on commas that are not inside angle brackets (handles generic types)."""
+    parts, depth, current = [], 0, []
+    for ch in s:
+        if ch == "<":
+            depth += 1
+            current.append(ch)
+        elif ch == ">":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current).strip())
+    return [p for p in parts if p]
+
+
 def _parse_inheritance(raw: str | None) -> tuple[str | None, list[str]]:
     if not raw:
         return None, []
-    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    parts = _split_top_level(raw)
     if not parts:
         return None, []
-    base = parts[0]
-    interfaces = parts[1:]
-    return base, interfaces
+    return parts[0], parts[1:]
 
 
 def parse_script(file_path: str, source: str) -> ScriptInfo:

@@ -103,3 +103,65 @@ def test_no_class():
     info = parse_script("empty.cs", NO_CLASS_CS)
     assert info.class_name is None
     assert info.serialize_fields == []
+
+
+# --- Regression tests for code-review bugs ---
+
+GENERIC_BASE_CS = """\
+using UnityEngine;
+
+public class SaveSystem : SerializableDictionary<string, int>
+{
+    [SerializeField]
+    private float saveInterval = 5f;
+}
+"""
+
+BLANK_LINE_SERIALIZE_CS = """\
+using UnityEngine;
+
+public class Foo : MonoBehaviour
+{
+    [SerializeField]
+
+    private float speed;
+
+    [SerializeField]
+
+    private GameObject target;
+}
+"""
+
+COMMENT_SERIALIZE_CS = """\
+using UnityEngine;
+
+public class Foo : MonoBehaviour
+{
+    [SerializeField]
+    // movement speed in units/sec
+    private float speed;
+}
+"""
+
+
+def test_generic_base_class_not_split_on_comma():
+    info = parse_script("SaveSystem.cs", GENERIC_BASE_CS)
+    assert info.base_class == "SerializableDictionary<string, int>"
+    assert info.interfaces == []
+
+
+def test_serialize_field_blank_line_between_attribute_and_field():
+    info = parse_script("Foo.cs", BLANK_LINE_SERIALIZE_CS)
+    names = [f["name"] for f in info.serialize_fields]
+    assert "speed" in names
+    assert "target" in names
+    types = {f["name"]: f["type"] for f in info.serialize_fields}
+    assert types["speed"] == "float"
+    assert types["target"] == "GameObject"
+
+
+def test_serialize_field_comment_between_attribute_and_field():
+    info = parse_script("Foo.cs", COMMENT_SERIALIZE_CS)
+    names = [f["name"] for f in info.serialize_fields]
+    assert "speed" in names
+    assert info.serialize_fields[0]["type"] == "float"
