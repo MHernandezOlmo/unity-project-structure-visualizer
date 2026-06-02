@@ -121,6 +121,16 @@ def build_index(project_root: str) -> ProjectIndex:
                 graph.add_node(target, type="external", class_name=iface)
             graph.add_edge(node, target, type="implements")
 
+    # Script-to-script references (new, GetComponent, typed fields — filtered to project scripts)
+    for path, info in scripts.items():
+        src_node = f"script:{path}"
+        for ref_class in info.references:
+            target_info = class_to_script.get(ref_class)
+            if target_info and target_info.file_path != path:
+                tgt_node = f"script:{target_info.file_path}"
+                if not graph.has_edge(src_node, tgt_node):
+                    graph.add_edge(src_node, tgt_node, type="references")
+
     # Scene / prefab nodes + "uses" edges to scripts
     for path, scene in scenes.items():
         kind = "scene" if path.replace("\\", "/").endswith(".unity") else "prefab"

@@ -23,6 +23,23 @@ SERIALIZE_FIELD_RE = re.compile(
     r"(\w+)\s*(?:;|=|\{)",
 )
 
+# new ClassName( or new ClassName<T>
+NEW_RE = re.compile(r"\bnew\s+(\w+)\s*[<(]")
+
+# GetComponent<T>, AddComponent<T>, FindObjectOfType<T>, etc.
+UNITY_GENERIC_RE = re.compile(
+    r"\b(?:GetComponent|AddComponent|RemoveComponent|FindObjectOfType|FindObjectsOfType"
+    r"|GetComponentInChildren|GetComponentInParent)\s*<\s*(\w+)\s*>"
+)
+
+# Class-level field declarations (access modifier required, so no local vars).
+# Only captures simple (non-generic) type names; generic fields like List<T> are skipped.
+FIELD_TYPE_RE = re.compile(
+    r"(?:private|public|protected|internal)\s+"
+    r"(?:(?:readonly|static|override|virtual|abstract|new)\s+)*"
+    r"(\w+)\s+\w+\s*[;={]"
+)
+
 
 @dataclass
 class ScriptInfo:
@@ -32,6 +49,7 @@ class ScriptInfo:
     interfaces: list[str] = field(default_factory=list)
     usings: list[str] = field(default_factory=list)
     serialize_fields: list[dict] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
 
 
 def _split_top_level(s: str) -> list[str]:
@@ -77,6 +95,20 @@ def parse_script(file_path: str, source: str) -> ScriptInfo:
         for m in SERIALIZE_FIELD_RE.finditer(source)
     ]
 
+    refs: set[str] = set()
+    for m in NEW_RE.finditer(source):
+        refs.add(m.group(1))
+    for m in UNITY_GENERIC_RE.finditer(source):
+        refs.add(m.group(1))
+    for m in FIELD_TYPE_RE.finditer(source):
+        refs.add(m.group(1))
+    # Exclude types already modeled by inheritance/interface edges
+    refs.discard(class_name)
+    if base_class:
+        refs.discard(base_class.split("<")[0].strip())
+    for iface in interfaces:
+        refs.discard(iface)
+
     return ScriptInfo(
         file_path=file_path,
         class_name=class_name,
@@ -84,6 +116,7 @@ def parse_script(file_path: str, source: str) -> ScriptInfo:
         interfaces=interfaces,
         usings=usings,
         serialize_fields=serialize_fields,
+        references=sorted(refs),
     )
 
 

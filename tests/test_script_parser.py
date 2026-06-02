@@ -165,3 +165,55 @@ def test_serialize_field_comment_between_attribute_and_field():
     names = [f["name"] for f in info.serialize_fields]
     assert "speed" in names
     assert info.serialize_fields[0]["type"] == "float"
+
+
+# --- References detection tests ---
+
+INSTALLER_CS = """\
+using UnityEngine;
+
+public class Installer : MonoBehaviour
+{
+    private PlayerController _player;
+    private EnemySpawner _spawner;
+
+    void Start()
+    {
+        _player = new PlayerController();
+        _spawner = GetComponent<EnemySpawner>();
+        var gm = FindObjectOfType<GameManager>();
+    }
+}
+"""
+
+
+def test_references_new_instance():
+    info = parse_script("Installer.cs", INSTALLER_CS)
+    assert "PlayerController" in info.references
+
+
+def test_references_get_component():
+    info = parse_script("Installer.cs", INSTALLER_CS)
+    assert "EnemySpawner" in info.references
+
+
+def test_references_find_object_of_type():
+    info = parse_script("Installer.cs", INSTALLER_CS)
+    assert "GameManager" in info.references
+
+
+def test_references_typed_field():
+    info = parse_script("Installer.cs", INSTALLER_CS)
+    # EnemySpawner appears in both the typed field and GetComponent<> — should be deduplicated
+    assert info.references.count("EnemySpawner") == 1
+
+
+def test_references_excludes_own_class():
+    info = parse_script("Installer.cs", INSTALLER_CS)
+    assert "Installer" not in info.references
+
+
+def test_references_empty_when_no_deps():
+    info = parse_script("PlayerController.cs", PLAYER_CS)
+    # PlayerController has no references to other project scripts
+    assert "PlayerController" not in info.references

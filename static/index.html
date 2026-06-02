@@ -22,6 +22,7 @@
       --uses:     #e94560;
       --inherits: #ffd166;
       --impl:     #06d6a0;
+      --ref:      #c77dff;
     }
 
     body {
@@ -433,6 +434,7 @@
       <span class="leg"><span class="leg-edge" style="border-color:var(--uses)"></span>uses</span>
       <span class="leg"><span class="leg-edge" style="border-color:var(--inherits);border-top-style:dashed"></span>inherits</span>
       <span class="leg"><span class="leg-edge" style="border-color:var(--impl);border-top-style:dotted"></span>implements</span>
+      <span class="leg"><span class="leg-edge" style="border-color:var(--ref)"></span>references</span>
     </div>
   </div>
   <div id="cy"></div>
@@ -580,6 +582,15 @@ const CY_STYLE = [
       'line-style': 'dotted',
       label: 'impl',
       color: '#06d6a0',
+    },
+  },
+  {
+    selector: 'edge[type="references"]',
+    style: {
+      'line-color': '#c77dff',
+      'target-arrow-color': '#c77dff',
+      label: 'ref',
+      color: '#c77dff',
     },
   },
 ]

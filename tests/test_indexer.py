@@ -344,3 +344,68 @@ MonoBehaviour:
         (u, v) for u, v, d in idx.graph.edges(data=True) if d.get("type") == "uses"
     ]
     assert len(uses_edges) == 1
+
+
+# ---------------------------------------------------------------------------
+# References edges
+# ---------------------------------------------------------------------------
+
+GAME_MANAGER_CS = """\
+using UnityEngine;
+public class GameManager : MonoBehaviour
+{
+    private PlayerController _player;
+
+    void Start()
+    {
+        _player = new PlayerController();
+    }
+}
+"""
+
+
+def test_graph_references_edge():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "Assets/Scripts/PlayerController.cs", PLAYER_CS)
+        _write(root, "Assets/Scripts/PlayerController.cs.meta", _meta(PLAYER_GUID))
+        _write(root, "Assets/Scripts/GameManager.cs", GAME_MANAGER_CS)
+        _write(root, "Assets/Scripts/GameManager.cs.meta", _meta("c" * 32))
+        idx = build_index(str(root))
+    ref_edges = [(u, v) for u, v, d in idx.graph.edges(data=True) if d.get("type") == "references"]
+    assert len(ref_edges) == 1
+    src_class = idx.graph.nodes[ref_edges[0][0]].get("class_name")
+    tgt_class = idx.graph.nodes[ref_edges[0][1]].get("class_name")
+    assert src_class == "GameManager"
+    assert tgt_class == "PlayerController"
+
+
+def test_graph_no_self_reference_edge():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "Assets/Scripts/PlayerController.cs", PLAYER_CS)
+        _write(root, "Assets/Scripts/PlayerController.cs.meta", _meta(PLAYER_GUID))
+        idx = build_index(str(root))
+    ref_edges = [(u, v) for u, v, d in idx.graph.edges(data=True) if d.get("type") == "references"]
+    assert all(u != v for u, v in ref_edges)
+
+
+def test_graph_no_duplicate_references_edge():
+    # Multiple patterns (field + new + GetComponent) matching the same target → one edge
+    multi_ref_cs = """\
+using UnityEngine;
+public class Spawner : MonoBehaviour
+{
+    private PlayerController _p;
+    void Start() { _p = new PlayerController(); var x = GetComponent<PlayerController>(); }
+}
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "Assets/Scripts/PlayerController.cs", PLAYER_CS)
+        _write(root, "Assets/Scripts/PlayerController.cs.meta", _meta(PLAYER_GUID))
+        _write(root, "Assets/Scripts/Spawner.cs", multi_ref_cs)
+        _write(root, "Assets/Scripts/Spawner.cs.meta", _meta("d" * 32))
+        idx = build_index(str(root))
+    ref_edges = [(u, v) for u, v, d in idx.graph.edges(data=True) if d.get("type") == "references"]
+    assert len(ref_edges) == 1
