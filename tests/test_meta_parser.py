@@ -50,3 +50,15 @@ def test_missing_guid_is_skipped():
 def test_empty_directory():
     with tempfile.TemporaryDirectory() as tmp:
         assert build_guid_map(tmp) == {}
+
+
+def test_excluded_dirs_are_skipped():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_meta(root, "Assets/Scripts/Player.cs", "a" * 32)
+        # These should all be ignored
+        _write_meta(root, "Assets/Plugins/SomeLib.cs", "b" * 32)
+        _write_meta(root, "Assets/TextMesh Pro/TMP_Text.cs", "c" * 32)
+        _write_meta(root, "Assets/DOTween/DOTween.cs", "d" * 32)
+        result = build_guid_map(tmp)
+    assert list(result.keys()) == ["a" * 32]

@@ -2,6 +2,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from parser import iter_assets
+
 USING_RE = re.compile(r"^\s*using\s+([\w.]+)\s*;", re.MULTILINE)
 
 # Matches: class Foo : BaseClass, IInterface { ... }
@@ -88,7 +90,7 @@ def parse_script(file_path: str, source: str) -> ScriptInfo:
 def parse_scripts(project_root: str) -> list[ScriptInfo]:
     root = Path(project_root)
     results = []
-    for cs_file in root.rglob("*.cs"):
+    for cs_file in iter_assets(project_root, ".cs"):
         try:
             source = cs_file.read_text(encoding="utf-8", errors="ignore")
         except OSError:

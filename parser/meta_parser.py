@@ -1,15 +1,17 @@
 import re
 from pathlib import Path
 
+from parser import iter_assets
+
 GUID_RE = re.compile(r"^guid:\s+([a-f0-9]{32})", re.MULTILINE)
 
 
 def build_guid_map(project_root: str) -> dict[str, str]:
-    """Return {guid: relative_asset_path} for every .meta file found under project_root."""
+    """Return {guid: relative_asset_path} for every .meta file found under Assets/."""
     root = Path(project_root)
     guid_map: dict[str, str] = {}
 
-    for meta_file in root.rglob("*.meta"):
+    for meta_file in iter_assets(project_root, ".meta"):
         try:
             text = meta_file.read_text(encoding="utf-8", errors="ignore")
         except OSError:
