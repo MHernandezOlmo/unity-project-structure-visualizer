@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unity Visualizer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #12121f;
+      --sidebar:  #1a1a2e;
+      --panel:    #16213e;
+      --border:   #2a2a45;
+      --text:     #dde0f0;
+      --muted:    #6b7090;
+      --scene:    #4ecdc4;
+      --prefab:   #45b7d1;
+      --script:   #7bc67e;
+      --external: #4a4a6a;
+      --uses:     #e94560;
+      --inherits: #ffd166;
+      --impl:     #06d6a0;
+    }
+
+    body {
+      display: flex;
+      height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ─────────────────────────────── */
+    #sidebar {
+      width: 210px;
+      min-width: 210px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 13px 14px 11px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .sb-section {
+      flex: 1;
+      overflow-y: auto;
+      border-bottom: 1px solid var(--border);
+      min-height: 60px;
+    }
+
+    .sb-section h2 {
+      padding: 7px 14px 5px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.1px;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      background: var(--sidebar);
+    }
+
+    .sb-item {
+      padding: 5px 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sb-item:hover   { background: rgba(255,255,255,.05); }
+    .sb-item.active  { background: rgba(255,255,255,.09); }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.rect { border-radius: 2px; }
+
+    .sb-label { overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Main area ───────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    button {
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { background: rgba(255,255,255,.14); }
+
+    #legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-left: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .leg { display: flex; align-items: center; gap: 4px; }
+    .leg-node { width: 10px; height: 10px; }
+    .leg-edge { width: 22px; height: 0; border-top-width: 2px; border-top-style: solid; }
+
+    #cy { flex: 1; }
+
+    /* ── Status overlay ──────────────────────── */
+    #status-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    #status-msg {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 16px 24px;
+      border-radius: 6px;
+      color: var(--muted);
+      text-align: center;
+      display: none;
+    }
+    #status-msg.visible { display: block; }
+
+    /* ── Detail panel ────────────────────────── */
+    #detail {
+      width: 260px;
+      min-width: 260px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+    }
+    #detail.visible { display: flex; }
+
+    #detail-head {
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #detail-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 15px;
+      padding: 0 2px;
+    }
+    #detail-close:hover { color: var(--text); background: none; }
+
+    #detail-body { padding: 12px 14px; }
+
+    .d-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .9px;
+      color: var(--muted);
+      margin: 10px 0 4px;
+    }
+    .d-label:first-child { margin-top: 0; }
+
+    .tag {
+      display: inline-block;
+      background: rgba(255,255,255,.08);
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 11px;
+      margin: 2px 2px 0 0;
+    }
+
+    .go-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 10px;
+      margin-bottom: 6px;
+    }
+    .go-name { font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+    .go-inactive { opacity: .5; }
+    .comp-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+
+    .muted { color: var(--muted); font-size: 12px; }
+
+    /* ── Welcome overlay ─────────────────────────── */
+    #welcome {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #welcome.hidden { display: none; }
+
+    #welcome-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 40px 44px;
+      width: 500px;
+      max-width: 90vw;
+    }
+
+    #welcome-card h1 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    #welcome-card .welcome-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 24px;
+      line-height: 1.55;
+    }
+
+    #welcome-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    #welcome-path {
+      flex: 1;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    #welcome-path:focus { border-color: var(--scene); }
+    #welcome-path::placeholder { color: var(--muted); }
+
+    #welcome-load {
+      padding: 7px 18px;
+      font-size: 13px;
+      background: var(--scene);
+      color: #12121f;
+      border: none;
+      font-weight: 600;
+    }
+    #welcome-load:hover { background: #6eddd6; }
+    #welcome-load:disabled { opacity: .5; cursor: default; }
+
+    #welcome-error {
+      color: #e94560;
+      font-size: 12px;
+      min-height: 18px;
+      margin-bottom: 12px;
+    }
+
+    .welcome-hint {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    /* ── Chat panel ──────────────────────────────── */
+    #chat {
+      height: 220px;
+      border-top: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      background: var(--panel);
+      flex-shrink: 0;
+    }
+    #chat.open { display: flex; }
+
+    #chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      color: var(--muted);
+    }
+
+    #chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chat-msg {
+      max-width: 90%;
+      padding: 5px 9px;
+      border-radius: 5px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .chat-user {
+      align-self: flex-end;
+      background: rgba(78,205,196,.18);
+      color: var(--scene);
+    }
+    .chat-agent {
+      align-self: flex-start;
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+    }
+    .chat-agent.thinking { color: var(--muted); font-style: italic; }
+
+    #chat-input-row {
+      display: flex;
+      gap: 6px;
+      padding: 7px 12px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 5px 9px;
+      font-size: 12px;
+      outline: none;
+    }
+    #chat-input:focus { border-color: var(--scene); }
+    #chat-input::placeholder { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<!-- Welcome overlay -->
+<div id="welcome">
+  <div id="welcome-card">
+    <h1>Unity Visualizer</h1>
+    <p class="welcome-sub">
+      Paste the full path to a Unity project folder to explore its asset graph,
+      script relationships, and scene dependencies.
+    </p>
+    <div id="welcome-input-row">
+      <input id="welcome-path" type="text"
+             placeholder="C:\MyGame  or  /home/user/MyGame">
+      <button id="welcome-load">Load</button>
+    </div>
+    <div id="welcome-error"></div>
+    <p class="welcome-hint">
+      Windows: click the Explorer address bar and copy the path.<br>
+      Mac / Linux: drag the folder into a terminal and copy the printed path.
+    </p>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div id="sidebar-header">Unity Visualizer</div>
+  <div class="sb-section">
+    <h2>Scenes &amp; Prefabs</h2>
+    <div id="sb-scenes"></div>
+  </div>
+  <div class="sb-section">
+    <h2>Scripts</h2>
+    <div id="sb-scripts"></div>
+  </div>
+</div>
+
+<!-- Graph area -->
+<div id="main">
+  <div id="toolbar">
+    <button id="btn-fit">Fit view</button>
+    <button id="btn-layout">Re-layout</button>
+    <button id="btn-chat">Chat</button>
+    <button id="btn-change" style="margin-left:auto">Change project</button>
+    <div id="legend">
+      <span class="leg"><span class="leg-node dot rect" style="background:var(--scene)"></span>Scene</span>
+      <span class="leg"><span class="leg-node dot rect" style="background:var(--prefab)"></span>Prefab</span>
+      <span class="leg"><span class="leg-node dot" style="background:var(--script)"></span>Script</span>
+      <span class="leg"><span class="leg-node dot" style="background:var(--external)"></span>External</span>
+      <span class="leg"><span class="leg-edge" style="border-color:var(--uses)"></span>uses</span>
+      <span class="leg"><span class="leg-edge" style="border-color:var(--inherits);border-top-style:dashed"></span>inherits</span>
+      <span class="leg"><span class="leg-edge" style="border-color:var(--impl);border-top-style:dotted"></span>implements</span>
+    </div>
+  </div>
+  <div id="cy"></div>
+  <div id="status-overlay"><div id="status-msg"></div></div>
+  <div id="chat">
+    <div id="chat-header">
+      <span>Ask about this project</span>
+      <button id="chat-close" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px">✕</button>
+    </div>
+    <div id="chat-history"></div>
+    <div id="chat-input-row">
+      <input id="chat-input" type="text" placeholder="e.g. Which scripts does Main.unity use?">
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div id="detail">
+  <div id="detail-head">
+    <span id="detail-title">Detail</span>
+    <button id="detail-close">✕</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+<script>
+'use strict'
+
+// ── Cytoscape style ──────────────────────────────────────────────────────────
+
+const CY_STYLE = [
+  {
+    selector: 'node',
+    style: {
+      label: 'data(label)',
+      'font-size': 11,
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'text-wrap': 'wrap',
+      'text-max-width': 90,
+      'min-zoomed-font-size': 7,
+      color: '#fff',
+    },
+  },
+  {
+    selector: 'node[type="scene"]',
+    style: {
+      'background-color': '#4ecdc4',
+      shape: 'round-rectangle',
+      color: '#12121f',
+      'font-weight': 'bold',
+      width: 'label',
+      height: 30,
+      padding: 10,
+    },
+  },
+  {
+    selector: 'node[type="prefab"]',
+    style: {
+      'background-color': '#45b7d1',
+      shape: 'round-rectangle',
+      color: '#12121f',
+      'font-weight': 'bold',
+      width: 'label',
+      height: 30,
+      padding: 10,
+    },
+  },
+  {
+    selector: 'node[type="script"]',
+    style: {
+      'background-color': '#7bc67e',
+      shape: 'ellipse',
+      color: '#12121f',
+      width: 68,
+      height: 68,
+    },
+  },
+  {
+    selector: 'node[type="external"]',
+    style: {
+      'background-color': '#4a4a6a',
+      shape: 'ellipse',
+      color: '#9999bb',
+      width: 56,
+      height: 56,
+      'font-size': 10,
+    },
+  },
+  {
+    selector: 'node:selected',
+    style: { 'border-width': 3, 'border-color': '#fff' },
+  },
+  {
+    selector: '.faded',
+    style: { opacity: 0.15 },
+  },
+  {
+    selector: 'edge',
+    style: {
+      'curve-style': 'bezier',
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 1,
+      'font-size': 9,
+      color: '#888',
+      'text-background-color': '#12121f',
+      'text-background-opacity': 0.85,
+      'text-background-padding': '2px',
+      'min-zoomed-font-size': 7,
+    },
+  },
+  {
+    selector: 'edge[type="uses"]',
+    style: {
+      'line-color': '#e94560',
+      'target-arrow-color': '#e94560',
+      label: 'uses',
+      color: '#e94560',
+    },
+  },
+  {
+    selector: 'edge[type="inherits"]',
+    style: {
+      'line-color': '#ffd166',
+      'target-arrow-color': '#ffd166',
+      'line-style': 'dashed',
+      label: 'inherits',
+      color: '#ffd166',
+    },
+  },
+  {
+    selector: 'edge[type="implements"]',
+    style: {
+      'line-color': '#06d6a0',
+      'target-arrow-color': '#06d6a0',
+      'line-style': 'dotted',
+      label: 'impl',
+      color: '#06d6a0',
+    },
+  },
+]
+
+const LAYOUT = {
+  name: 'cose',
+  animate: true,
+  animationDuration: 500,
+  fit: true,
+  padding: 50,
+  randomize: true,
+  nodeRepulsion: 450000,
+  edgeElasticity: 100,
+  nestingFactor: 5,
+  gravity: 80,
+  numIter: 1000,
+  initialTemp: 200,
+  coolingFactor: 0.95,
+  minTemp: 1.0,
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+let cy = null
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url)
+    if (!r.ok) return null
+    return r.json()
+  } catch {
+    return null
+  }
+}
+
+function nodeIdToUrlPath(nodeId) {
+  // "scene:Assets\Scenes\Main.unity" → "Assets/Scenes/Main.unity"
+  const colon = nodeId.indexOf(':')
+  return nodeId.substring(colon + 1).replace(/\\/g, '/')
+}
+
+function showStatus(msg) {
+  const el = document.getElementById('status-msg')
+  el.textContent = msg
+  el.classList.toggle('visible', !!msg)
+}
+
+// ── Graph ────────────────────────────────────────────────────────────────────
+
+function buildElements(graphData) {
+  const nodes = graphData.nodes.map(n => ({
+    data: { id: n.id, label: n.label, type: n.type },
+  }))
+  const edges = graphData.edges.map((e, i) => ({
+    data: {
+      id: `e${i}`,
+      source: e.source,
+      target: e.target,
+      type: e.type,
+    },
+  }))
+  return [...nodes, ...edges]
+}
+
+function runLayout() {
+  if (cy) cy.layout(LAYOUT).run()
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+function buildSidebar(scenes, scripts) {
+  const scenesEl = document.getElementById('sb-scenes')
+  const scriptsEl = document.getElementById('sb-scripts')
+
+  scenesEl.innerHTML = ''
+  scriptsEl.innerHTML = ''
+
+  if (!scenes || !scenes.length) {
+    scenesEl.innerHTML = '<div class="sb-item muted">None</div>'
+  } else {
+    scenes.forEach(s => {
+      const item = document.createElement('div')
+      item.className = 'sb-item'
+      item.dataset.nodeId = `${s.kind}:${s.path}`
+      const color = s.kind === 'scene' ? 'var(--scene)' : 'var(--prefab)'
+      item.innerHTML = `<span class="dot rect" style="background:${color}"></span>
+                        <span class="sb-label">${s.path.split(/[\\/]/).pop()}</span>`
+      item.addEventListener('click', () => selectNode(item.dataset.nodeId))
+      scenesEl.appendChild(item)
+    })
+  }
+
+  if (!scripts || !scripts.length) {
+    scriptsEl.innerHTML = '<div class="sb-item muted">None</div>'
+  } else {
+    scripts.forEach(s => {
+      const item = document.createElement('div')
+      item.className = 'sb-item'
+      item.dataset.nodeId = `script:${s.path}`
+      item.innerHTML = `<span class="dot" style="background:var(--script)"></span>
+                        <span class="sb-label">${s.class_name || s.path.split(/[\\/]/).pop()}</span>`
+      item.addEventListener('click', () => selectNode(item.dataset.nodeId))
+      scriptsEl.appendChild(item)
+    })
+  }
+}
+
+function selectNode(nodeId) {
+  if (!cy) return
+  const node = cy.getElementById(nodeId)
+  if (!node.length) return
+
+  cy.elements().removeClass('faded selected')
+  node.select()
+  node.closedNeighborhood().removeClass('faded')
+  cy.elements().not(node.closedNeighborhood()).addClass('faded')
+  cy.animate({ fit: { eles: node.closedNeighborhood(), padding: 80 }, duration: 350 })
+
+  highlightSidebarItem(nodeId)
+  fetchAndRenderDetail(node)
+}
+
+function highlightSidebarItem(nodeId) {
+  document.querySelectorAll('.sb-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.nodeId === nodeId)
+  })
+}
+
+// ── Detail panel ─────────────────────────────────────────────────────────────
+
+function openDetail(title) {
+  document.getElementById('detail-title').textContent = title
+  document.getElementById('detail-body').innerHTML =
+    '<p class="muted">Loading…</p>'
+  document.getElementById('detail').classList.add('visible')
+}
+
+function setDetailBody(html) {
+  document.getElementById('detail-body').innerHTML = html
+}
+
+function closeDetail() {
+  document.getElementById('detail').classList.remove('visible')
+  if (cy) cy.elements().removeClass('faded')
+  document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'))
+}
+
+async function fetchAndRenderDetail(node) {
+  const type  = node.data('type')
+  const label = node.data('label')
+  const id    = node.data('id')
+
+  openDetail(label)
+
+  if (type === 'scene' || type === 'prefab') {
+    const urlPath = nodeIdToUrlPath(id)
+    const data = await fetchJSON(`/scenes/${urlPath}`)
+    if (!data) { setDetailBody('<p class="muted">Failed to load scene.</p>'); return }
+    renderSceneDetail(data)
+
+  } else if (type === 'script') {
+    const data = await fetchJSON(`/scripts/${label}`)
+    if (!data) { setDetailBody('<p class="muted">Failed to load script.</p>'); return }
+    renderScriptDetail(data)
+
+  } else {
+    setDetailBody(`<p class="muted">Built-in or external type.</p>`)
+  }
+}
+
+function renderSceneDetail(data) {
+  let html = ''
+
+  html += `<div class="d-label">Kind</div>
+           <span class="tag">${data.kind}</span>`
+
+  if (data.script_classes.length) {
+    html += `<div class="d-label">Scripts used</div>`
+    html += data.script_classes.map(c => `<span class="tag">${c}</span>`).join('')
+  }
+
+  if (data.game_objects.length) {
+    html += `<div class="d-label">Game Objects (${data.game_objects.length})</div>`
+    data.game_objects.forEach(go => {
+      const inactive = go.is_active ? '' : ' go-inactive'
+      const comps = go.components
+        .map(c => {
+          const label = c.script_class ? `${c.type_name} <em>${c.script_class}</em>` : c.type_name
+          return `<span class="tag">${label}</span>`
+        })
+        .join('')
+      html += `<div class="go-card${inactive}">
+                 <div class="go-name">${go.name}${go.is_active ? '' : ' <span class="muted">(inactive)</span>'}</div>
+                 <div class="comp-chips">${comps || '<span class="muted">no components</span>'}</div>
+               </div>`
+    })
+  } else {
+    html += `<p class="muted" style="margin-top:8px">No GameObjects.</p>`
+  }
+
+  setDetailBody(html)
+}
+
+function renderScriptDetail(data) {
+  let html = ''
+
+  if (data.base_class) {
+    html += `<div class="d-label">Base class</div>
+             <span class="tag">${data.base_class}</span>`
+  }
+
+  if (data.interfaces.length) {
+    html += `<div class="d-label">Interfaces</div>`
+    html += data.interfaces.map(i => `<span class="tag">${i}</span>`).join('')
+  }
+
+  if (data.usings.length) {
+    html += `<div class="d-label">Usings</div>`
+    html += data.usings.map(u => `<span class="tag">${u}</span>`).join('')
+  }
+
+  if (data.serialize_fields.length) {
+    html += `<div class="d-label">Serialized fields</div>`
+    html += data.serialize_fields
+      .map(f => `<span class="tag">${f.type} <strong>${f.name}</strong></span>`)
+      .join('')
+  }
+
+  if (data.used_in_scenes.length) {
+    html += `<div class="d-label">Used in</div>`
+    html += data.used_in_scenes
+      .map(p => `<span class="tag">${p.split(/[\\/]/).pop()}</span>`)
+      .join('')
+  }
+
+  if (!html) html = '<p class="muted">No details available.</p>'
+  setDetailBody(html)
+}
+
+// ── Welcome / project loader ──────────────────────────────────────────────────
+
+function showWelcome() {
+  document.getElementById('welcome').classList.remove('hidden')
+  document.getElementById('welcome-error').textContent = ''
+  document.getElementById('welcome-path').focus()
+}
+
+function hideWelcome() {
+  document.getElementById('welcome').classList.add('hidden')
+}
+
+async function loadProject() {
+  const input = document.getElementById('welcome-path')
+  const errEl = document.getElementById('welcome-error')
+  const btn   = document.getElementById('welcome-load')
+  const path  = input.value.trim()
+
+  if (!path) { errEl.textContent = 'Please enter a folder path.'; return }
+
+  btn.disabled = true
+  btn.textContent = 'Loading…'
+  errEl.textContent = ''
+
+  try {
+    const r = await fetch('/project/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+    const data = await r.json()
+    if (!r.ok) {
+      errEl.textContent = data.detail || 'Failed to load project.'
+      return
+    }
+    hideWelcome()
+    await initGraph()
+  } catch {
+    errEl.textContent = 'Could not reach the server.'
+  } finally {
+    btn.disabled = false
+    btn.textContent = 'Load'
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+async function initGraph() {
+  showStatus('Loading…')
+  closeDetail()
+
+  const [graphData, scenes, scripts] = await Promise.all([
+    fetchJSON('/graph/dependencies'),
+    fetchJSON('/scenes'),
+    fetchJSON('/scripts'),
+  ])
+
+  if (!graphData) {
+    showStatus('Could not load graph data.')
+    buildSidebar([], [])
+    return
+  }
+
+  showStatus('')
+
+  const elements = buildElements(graphData)
+
+  if (!elements.length) {
+    showStatus('Empty project — no assets found.')
+    buildSidebar([], [])
+    return
+  }
+
+  if (cy) { cy.destroy(); cy = null }
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements,
+    style: CY_STYLE,
+    layout: LAYOUT,
+    minZoom: 0.1,
+    maxZoom: 4,
+  })
+
+  cy.on('tap', 'node', evt => {
+    const node = evt.target
+    cy.elements().removeClass('faded')
+    node.closedNeighborhood().removeClass('faded')
+    cy.elements().not(node.closedNeighborhood()).addClass('faded')
+    highlightSidebarItem(node.data('id'))
+    fetchAndRenderDetail(node)
+  })
+
+  cy.on('tap', evt => {
+    if (evt.target === cy) {
+      cy.elements().removeClass('faded')
+      closeDetail()
+    }
+  })
+
+  buildSidebar(scenes, scripts)
+}
+
+async function init() {
+  // Wire up static button listeners once
+  document.getElementById('btn-fit').addEventListener('click', () => cy && cy.fit(undefined, 40))
+  document.getElementById('btn-layout').addEventListener('click', runLayout)
+  document.getElementById('detail-close').addEventListener('click', closeDetail)
+  document.getElementById('btn-change').addEventListener('click', showWelcome)
+
+  // Welcome screen listeners
+  document.getElementById('welcome-load').addEventListener('click', loadProject)
+  document.getElementById('welcome-path').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadProject()
+  })
+
+  // If a project was pre-loaded via env var, skip welcome
+  const graphData = await fetchJSON('/graph/dependencies')
+  if (graphData) {
+    hideWelcome()
+    await initGraph()
+  } else {
+    showWelcome()
+    buildSidebar([], [])
+  }
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+
+function appendChatMsg(role, text) {
+  const history = document.getElementById('chat-history')
+  const el = document.createElement('div')
+  el.className = `chat-msg chat-${role}`
+  el.textContent = text
+  history.appendChild(el)
+  history.scrollTop = history.scrollHeight
+  return el
+}
+
+async function sendQuestion() {
+  const input = document.getElementById('chat-input')
+  const q = input.value.trim()
+  if (!q) return
+
+  input.value = ''
+  appendChatMsg('user', q)
+
+  const thinking = appendChatMsg('agent', 'Thinking…')
+  thinking.classList.add('thinking')
+
+  try {
+    const r = await fetch('/agent/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q }),
+    })
+    const data = await r.json()
+    thinking.classList.remove('thinking')
+    thinking.textContent = r.ok ? (data.answer || 'No answer.') : (data.detail || 'Error.')
+  } catch {
+    thinking.classList.remove('thinking')
+    thinking.textContent = 'Could not reach the agent.'
+  }
+}
+
+document.getElementById('btn-chat').addEventListener('click', () => {
+  document.getElementById('chat').classList.toggle('open')
+})
+document.getElementById('chat-close').addEventListener('click', () => {
+  document.getElementById('chat').classList.remove('open')
+})
+document.getElementById('chat-send').addEventListener('click', sendQuestion)
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendQuestion()
+})
+
+init()
+</script>
+</body>
+</html>
