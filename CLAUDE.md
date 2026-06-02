@@ -19,7 +19,7 @@ No env vars required. Optionally set `UNITY_PROJECT_ROOT` to skip the welcome sc
 cd unity-visualizer
 python -m pytest -v
 ```
-All 90 tests must stay green. No mocks — tests use real temp-dir fixtures.
+All 99 tests must stay green. No mocks — tests use real temp-dir fixtures.
 Exception: `agent.ask` is patched in endpoint tests (Anthropic API is an external service).
 
 ## Project layout
@@ -75,6 +75,9 @@ unity-visualizer/
 | 8 | Q&A agent — Anthropic SDK tool-use loop, `POST /agent/ask`, chat panel in frontend |
 | 9 | Project loader — welcome screen + `POST /project/load`, no env var required |
 | 10 | Asset filtering — scan restricted to `Assets/`; EXCLUDED_DIRS prunes plugins |
+| 11 | MonoBehaviour visual distinction — no hub node; scripts inheriting MB get `mono=True` flag, rendered amber in frontend |
+| 12 | Script-to-script dependency detection — `new X()`, `GetComponent<X>`, typed fields → `"references"` edges (purple) |
+| 13 | Auto-sized script nodes — ellipse nodes use `width/height: label` + padding so long class names always fit |
 
 ## Key design decisions
 - **Asset scanning**: only `Assets/` is walked; `EXCLUDED_DIRS` in `parser/__init__.py` prunes
@@ -90,6 +93,13 @@ unity-visualizer/
   lines; `yaml.safe_load` each block body independently; `stripped` suffix handled
 - **Agent model**: `claude-haiku-4-5-20251001` with ephemeral prompt caching on system prompt;
   6 tools wrapping ProjectIndex query methods
+- **MonoBehaviour handling**: scripts whose `base_class == "MonoBehaviour"` are tagged `mono=True`
+  on the graph node instead of creating an `external:MonoBehaviour` hub node. The `GraphNode`
+  Pydantic model carries `mono: bool`; the frontend uses a `node[?mono]` Cytoscape selector.
+- **Script references**: `ScriptInfo.references` is populated by three regex patterns
+  (`NEW_RE`, `UNITY_GENERIC_RE`, `FIELD_TYPE_RE`) in `script_parser.py`. The indexer filters
+  those to known project scripts and creates `"references"` edges; non-project types are silently
+  ignored to avoid noise from Unity/system types.
 - **No mocks in tests**: all parser/indexer/API tests build real temp-dir fixtures;
   `agent.ask` is the only thing patched (external API boundary)
 
