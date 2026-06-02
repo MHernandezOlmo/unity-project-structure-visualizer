@@ -292,16 +292,23 @@ def test_graph_uses_edge_scene_to_script():
     assert v.startswith("script:")
 
 
-def test_graph_inherits_edge_to_external():
+def test_graph_monobehaviour_tagged_not_edged():
     with tempfile.TemporaryDirectory() as tmp:
         _build_fixture(Path(tmp))
         idx = build_index(tmp)
+    # No external:MonoBehaviour node and no inherits edge pointing to it
+    assert "external:MonoBehaviour" not in idx.graph.nodes
     inherits_edges = [
         (u, v) for u, v, d in idx.graph.edges(data=True) if d.get("type") == "inherits"
     ]
-    assert len(inherits_edges) == 1
-    _, target = inherits_edges[0]
-    assert target == "external:MonoBehaviour"
+    assert len(inherits_edges) == 0
+    # Scripts inheriting MonoBehaviour are tagged mono=True on the node
+    class_to_data = {
+        d["class_name"]: d
+        for _, d in idx.graph.nodes(data=True)
+        if d.get("type") == "script"
+    }
+    assert class_to_data["PlayerController"].get("mono") is True
 
 
 def test_graph_no_duplicate_uses_edges():

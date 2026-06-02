@@ -17,6 +17,7 @@
       --scene:    #4ecdc4;
       --prefab:   #45b7d1;
       --script:   #7bc67e;
+      --mono:     #f4a261;
       --external: #4a4a6a;
       --uses:     #e94560;
       --inherits: #ffd166;
@@ -427,6 +428,7 @@
       <span class="leg"><span class="leg-node dot rect" style="background:var(--scene)"></span>Scene</span>
       <span class="leg"><span class="leg-node dot rect" style="background:var(--prefab)"></span>Prefab</span>
       <span class="leg"><span class="leg-node dot" style="background:var(--script)"></span>Script</span>
+      <span class="leg"><span class="leg-node dot" style="background:var(--mono)"></span>MonoBehaviour</span>
       <span class="leg"><span class="leg-node dot" style="background:var(--external)"></span>External</span>
       <span class="leg"><span class="leg-edge" style="border-color:var(--uses)"></span>uses</span>
       <span class="leg"><span class="leg-edge" style="border-color:var(--inherits);border-top-style:dashed"></span>inherits</span>
@@ -509,6 +511,13 @@ const CY_STYLE = [
       color: '#12121f',
       width: 68,
       height: 68,
+    },
+  },
+  {
+    selector: 'node[?mono]',
+    style: {
+      'background-color': '#f4a261',
+      color: '#12121f',
     },
   },
   {
@@ -624,7 +633,7 @@ function showStatus(msg) {
 
 function buildElements(graphData) {
   const nodes = graphData.nodes.map(n => ({
-    data: { id: n.id, label: n.label, type: n.type },
+    data: { id: n.id, label: n.label, type: n.type, mono: n.mono || false },
   }))
   const edges = graphData.edges.map((e, i) => ({
     data: {

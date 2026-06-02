@@ -202,7 +202,6 @@ def test_graph_node_types(client):
     types = {n["type"] for n in body["nodes"]}
     assert "scene" in types
     assert "script" in types
-    assert "external" in types
 
 
 def test_graph_scene_node_label(client):
@@ -223,11 +222,13 @@ def test_graph_uses_edge(client):
     assert len(uses) == 1
 
 
-def test_graph_inherits_edge(client):
+def test_graph_monobehaviour_tagged_not_edged(client):
     body = client.get("/graph/dependencies").json()
+    # No inherits edge to MonoBehaviour; it's represented as a node flag instead
     inherits = [e for e in body["edges"] if e["type"] == "inherits"]
-    assert len(inherits) == 1
-    assert inherits[0]["target"] == "external:MonoBehaviour"
+    assert len(inherits) == 0
+    player_node = next(n for n in body["nodes"] if n["label"] == "PlayerController")
+    assert player_node["mono"] is True
 
 
 def test_graph_no_index(no_index_client):

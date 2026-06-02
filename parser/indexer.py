@@ -106,9 +106,10 @@ def build_index(project_root: str) -> ProjectIndex:
     # Script nodes + inheritance / interface edges
     for path, info in scripts.items():
         node = f"script:{path}"
-        graph.add_node(node, type="script", path=path, class_name=info.class_name)
+        is_mono = info.base_class == "MonoBehaviour"
+        graph.add_node(node, type="script", path=path, class_name=info.class_name, mono=is_mono)
 
-        if info.base_class:
+        if info.base_class and not is_mono:
             target = _script_node_id(info.base_class, class_to_script)
             if not graph.has_node(target):
                 graph.add_node(target, type="external", class_name=info.base_class)

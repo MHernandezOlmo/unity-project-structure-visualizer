@@ -162,7 +162,12 @@ def agent_ask(req: AskRequest, index: ProjectIndex = Depends(get_index)):
 def get_graph(index: ProjectIndex = Depends(get_index)):
     g = index.graph
     nodes = [
-        GraphNode(id=n, type=g.nodes[n].get("type", "unknown"), label=_graph_label(n, g))
+        GraphNode(
+            id=n,
+            type=g.nodes[n].get("type", "unknown"),
+            label=_graph_label(n, g),
+            mono=g.nodes[n].get("mono", False),
+        )
         for n in g.nodes
     ]
     edges = [

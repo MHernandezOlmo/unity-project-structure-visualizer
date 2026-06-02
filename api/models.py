@@ -46,6 +46,7 @@ class GraphNode(BaseModel):
     id: str
     type: str
     label: str
+    mono: bool = False
 
 
 class GraphEdge(BaseModel):
